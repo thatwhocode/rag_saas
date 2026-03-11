@@ -5,25 +5,25 @@ from sqlalchemy import String, Boolean, DateTime, func, Integer, ForeignKey, Enu
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.database import Base
-from src.db.user import User
+print(f"--- LOADING CHAT MODELS FROM {__name__} ---")
 class ChatRole(enum.Enum):
-    USER = "user",
+    USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
 
 class UserChat(Base):
     __tablename__= "user_chat"
-    user_id:  Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), primary_key=True)
-    chat_id : Mapped[uuid.UUID] = mapped_column(ForeignKey("chat.id"), primary_key=True)
+    user_id:  Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id",  ondelete="CASCADE"), primary_key=True)
+    chat_id : Mapped[uuid.UUID] = mapped_column(ForeignKey("chat.id",  ondelete="CASCADE"), primary_key=True)
     joined_at : Mapped[datetime] = mapped_column(server_default=func.now())
 
 class Chat(Base):
     __tablename__ = "chat"
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.UUID)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at : Mapped[datetime] = mapped_column(server_default=func.now())
     
-    messages : Mapped[list["Message"]] = relationship(back_populates="chat", cascade="all, delete-orphan")
+    messages : Mapped[list["Message"]] = relationship(back_populates="chat", cascade="all, delete-orphan", passive_deletes=True)
 
 class Message(Base):
     __tablename__ = "message"
@@ -32,10 +32,10 @@ class Message(Base):
         default=uuid.uuid4
     )
     chat_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("chat.id"), index=True 
+        ForeignKey("chat.id", ondelete="CASCADE"), index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("user.id"), index= True
+        ForeignKey("user.id", ondelete="CASCADE"), index= True
     )
     role : Mapped[ChatRole] = mapped_column(Enum(ChatRole), default=ChatRole.USER)
     tokens_count : Mapped[int] = mapped_column(Integer, default=0, nullable=False) 

@@ -11,7 +11,9 @@ class ChatService():
         self.message_repo = message_repo
         self.session = session # на майбутнє щоб комітити в сервісі
     async def initiate_new_chat(self, user_id : uuid.UUID ):
-        return await self.chat_repo.create_chat(user_id=user_id)
+        chat = await self.chat_repo.create_chat(user_id=user_id)
+        return chat 
+    
     async def get_chat_context(self, user_id: uuid.UUID, chat_id: uuid.UUID):
         if not await self.access_repo.is_user_in_chat(user_id=user_id, chat_id=chat_id):
             raise AccessDeniedException
@@ -35,3 +37,12 @@ class ChatService():
             Maintain a helpful yet brief tone. Avoid unnecessary verbosity"""
                         }
         return [system_prompt] + formatted_history
+    
+    async def save_interaction(self, user_id : uuid.UUID, chat_id : uuid.UUID, user_content: str, assistant_content : str, metadata):
+        try:
+            await self.message_repo.send_message(chat_id=chat_id, user_id=user_id, role="USER", content=user_content, tokens = 0)
+            await self.message_repo.send_message(chat_id=chat_id, user_id=user_id, role = "ASSISTANT", content=assistant_content, tokens=metadata["eval_count"])
+            await self.session.commit()
+        except Exception as e:
+            await self.session.rollback()
+            raise e

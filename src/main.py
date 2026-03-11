@@ -1,5 +1,5 @@
 from fastapi import APIRouter, FastAPI
-from api.routes import router
+from src.api.routes import router
 from src.auth.auth import auth_router
 from contextlib import asynccontextmanager
 from src.api.routes import rag_factory

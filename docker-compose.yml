@@ -41,7 +41,9 @@ services:
     volumes:
      - postgres_chat_data:/var/lib/postgresql/data
   ollama:
-    image: ollama/ollama:latest
+    build:
+      context: .
+      dockerfile : src/ollama/Dockerfile
     container_name: ollama
     ports:
      - '11434:11434'
