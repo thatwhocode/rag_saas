@@ -15,7 +15,7 @@ class RagService:
         relevant_chunks = await self.vector_store.search_context(
             query_vector=question_vector, 
             user_id=user_id,
-            limit=3
+            limit=10
         )
 
         print(f"Found chunks: {len(relevant_chunks)}")

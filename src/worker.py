@@ -7,25 +7,33 @@ from adapters.ollama_adapter import LLMAdapter
 from shared_packages.core.config import QdrantSettings, LLMSettings
 import asyncio
 from uuid import UUID
-qdrrant_settings = QdrantSettings()
-ollama_settings = LLMSettings()
-ollama_client= AsyncClient(host=f"{ollama_settings.OLLAMA_URL}")
-qdrant_client = AsyncQdrantClient(url=f"{QdrantSettings.QDRANT_URL}")
-        
-redis= RedisSettings()
-celery_app = Celery('hello', broker=redis.REDIS_URL, backend=redis.REDIS_URL)
 
-@celery_app.task(name='generate_text_task')
-def generate_text_task(prompt_text: str):
-    async def chat():
-        response =  await ollama_client.chat(model='llama3', messages=[])
-        {
-        'role': 'user',
-        'content': f"{prompt_text}"
-        },
-        return response.message.content
-    result_message = asyncio.run(chat())
-    return result_message
+
+q_settings = QdrantSettings()
+ol_settings = LLMSettings()
+redis_settings = RedisSettings()
+
+celery_app = Celery('tasks', broker=redis_settings.REDIS_URL, backend=redis_settings.REDIS_URL)
+
+@celery_app.task(name='process_document_task')
+def process_document_task(file_path: str, user_id_str: str):
+    async def run():
+        # Створюємо клієнтів ВСЕРЕДИНІ активного loop
+        ol_client = AsyncClient(host=ol_settings.OLLAMA_URL)
+        qd_client = AsyncQdrantClient(url=q_settings.QDRANT_URL)
+        
+        from adapters.qdrant_adapter import VectorStoreAdapter
+        from adapters.ollama_adapter import LLMAdapter
+        from src.services.ingestor import IngestionService
+        
+        ingestion = IngestionService(
+            VectorStoreAdapter(qd_client, q_settings.QDRANT_COLLECTION),
+            LLMAdapter(ol_client, ol_settings.EMBED_MODEL, ol_settings.CHAT_MODEL)
+        )
+        await ingestion.process_and_save_document(file_path, UUID(user_id_str))
+        return f"File {file_path} processed"
+
+    return asyncio.run(run())
 @celery_app.task(bind=True, name='process_document_task')
 def process_document_task(self, file_path: str, user_id_str: str):
     try:
@@ -34,7 +42,7 @@ def process_document_task(self, file_path: str, user_id_str: str):
         async def run_ingestion():
             from src.services.ingestor import IngestionService
             
-            ingestion = IngestionService(VectorStoreAdapter(qdrant_client, qdrrant_settings.QDRANT_COLLECTION), LLMAdapter(ollama_client, "nomic-embed-text", "llama3" ))
+            ingestion = IngestionService(VectorStoreAdapter(qdrant_client, q_settings.QDRANT_COLLECTION), LLMAdapter(ol_settings, "nomic-embed-text", "llama3" ))
             await ingestion.process_and_save_document(file_path, user_id)
             return f"Документ {file_path} успішно оброблено"
 
@@ -42,5 +50,4 @@ def process_document_task(self, file_path: str, user_id_str: str):
         return {"status": "success", "message": result_message}
         
     except Exception as e:
-        # Тут ми зловимо помилку, якщо щось піде не так
         return {"status": "error", "detail": str(e)}

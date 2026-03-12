@@ -5,3 +5,8 @@ class ChatResponse(CoreModel):
     id: uuid.UUID
     title: str
     created_at: datetime
+
+
+class ChatStreamRequest(CoreModel):
+    prompt: str
+    chat_id: uuid.UUID

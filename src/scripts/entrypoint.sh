@@ -1,4 +1,4 @@
-
+#!/bin/bash
 set -e
 
 echo "PostgreSQL is ready (checked by Docker) - checking migrations"

@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from src.worker import celery_app
 from src.core.dependencies import RagServiceFactory, RagService
 from src.api.schemas import TaskData, PromptRequest, UserRequest
+from src.chat.schemas.chat import ChatStreamRequest
 import os
 import shutil
 from shared_packages.core.config import LLMSettings
@@ -25,42 +26,60 @@ UPLOAD_PATH : str  = "app/files"
 router = APIRouter()
 
 @router.post("/chat/stream")
-async def chat_stream(prompt: str, chat_id: UUID, user = Depends(get_current_user), chat_service = Depends(get_chat_service)):
-
-    context = await chat_service.get_chat_context(user.id, chat_id)
+async def chat_stream(chat_request: ChatStreamRequest, user = Depends(get_current_user), chat_service = Depends(get_chat_service)):
+    # Отримуємо історію чату
+    db_context = await chat_service.get_chat_context(user.id, chat_request.chat_id)
     
-    context.append({'role': 'user', 'content': prompt})
+    formatted_context = []
+    for msg in db_context:
+        # Безпечно дістаємо роль та контент
+        # Працює і для об'єктів SQLAlchemy, і для звичайних словників
+        if isinstance(msg, dict):
+            role = msg.get('role')
+            content = msg.get('content')
+        else:
+            role = getattr(msg, 'role', 'assistant')
+            content = getattr(msg, 'content', '')
+
+        # Додаткова перевірка, якщо роль — це Enum (SQLAlchemy часто так робить)
+        role_str = role.value if hasattr(role, 'value') else str(role)
+        
+        formatted_context.append({"role": role_str, "content": content})
+    
+    # Додаємо поточне запитання юзера
+    formatted_context.append({'role': 'user', 'content': chat_request.prompt})
 
     async def generate():
-        client = AsyncClient(host=f"{ollama.OLLAMA_URL}")
+        # Створюємо клієнт тут, щоб уникнути конфліктів loop
+        client = AsyncClient(host=ollama.OLLAMA_URL)
         full_response = ""
-        metadata = {"prompt_eval_count": 0, "eval_count": 0}
-        async for part in await client.chat(
-            model=ollama.CHAT_MODEL,
-            messages=context, 
-            stream=True
-        ):
-            content = part['message']['content']
-            full_response += content
-            yield content 
-            if part.get("done"):
-                metadata["prompt_eval_count"] = part.get("prompt_eval_count", 0)
-                metadata["eval_count"] = part.get("eval_count", 0)
-
-        await chat_service.save_interaction(
-            user_id=user.id,
-            chat_id=chat_id,
-            user_content=prompt,
-            assistant_content=full_response,
-            metadata=metadata 
-        )
+        
+        try:
+            print(f"DEBUG: Connecting to Ollama at {ollama.OLLAMA_URL}")
+            response = await client.chat(
+                model=ollama.CHAT_MODEL,
+                messages=formatted_context,
+                stream=True
+            )
+            
+            async for part in response:
+                content = part['message']['content']
+                full_response += content
+                yield content
+            
+            # Зберігаємо тільки якщо стрім дочитали до кінця
+            await chat_service.save_interaction(user.id, chat_request.chat_id, chat_request.prompt, full_response, {})
+            
+        except Exception as e:
+            print(f"🚨 OLLAMA ERROR: {str(e)}")
+            yield f"\n[Backend Error]: {str(e)}"
 
     return StreamingResponse(generate(), media_type="text/plain")
 @router.post("/chats", response_model=ChatResponse)
 async def create_chat(user = Depends(get_current_user), chat_service : ChatService = Depends(get_chat_service)):
     return await chat_service.initiate_new_chat(user.id)
-@router.get("/chats{limit}/{offset}", response_model=list[ChatResponse])
-async def create_chat(limit : int, offset : int ,user = Depends(get_current_user), chat_service: ChatService = Depends(get_chat_service)):
+@router.get("/chats/{limit}/{offset}", response_model=list[ChatResponse])
+async def load_chat(limit : int =10, offset : int =0 ,user = Depends(get_current_user), chat_service: ChatService = Depends(get_chat_service)):
     return await chat_service.chat_repo.get_user_chats(user.id, limit, offset)
 @router.delete("/chat{chat_id}", response_model=list[ChatResponse])
 async def create_chat(chat_id : UUID ,user = Depends(get_current_user), chat_service: ChatService = Depends(get_chat_service)):

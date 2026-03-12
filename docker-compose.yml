@@ -37,7 +37,7 @@ services:
       retries: 5
       start_period: 10s
     ports:
-    - "5434:5432"
+    - "5434:5434"
     volumes:
      - postgres_chat_data:/var/lib/postgresql/data
   ollama:
@@ -45,6 +45,13 @@ services:
       context: .
       dockerfile : src/ollama/Dockerfile
     container_name: ollama
+    tty: true  
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q 'llama3' && ollama list | grep -q 'nomic-embed-text'"]
+      interval: 15s    
+      timeout: 5s       
+      retries: 40       
+      start_period: 10s
     ports:
      - '11434:11434'
     volumes:
@@ -69,7 +76,7 @@ services:
         condition: service_healthy
     volumes:
      - .:/files
-    command: celery -A src.worker.celery_app worker --loglevel=info
+    entrypoint: ["celery", "-A", "src.worker.celery_app", "worker", "--loglevel=info"]
   llm_redis:
     image: redis:8.6-alpine
     restart: always
@@ -93,6 +100,8 @@ services:
     container_name: llm_api
     depends_on:                     
       llm_chat_db:                  
+        condition: service_healthy
+      ollama:
         condition: service_healthy  
     ports:
       - '8000:8000'

@@ -1,11 +1,15 @@
+#!/bin/bash
 
+# 1. Запускаємо сервер
 ollama serve &
 
 echo "⏳ Waiting for Ollama server to start..."
-while ! curl -s localhost:11434/api/tags > /dev/null; do
+# 2. Використовуємо 'ollama list' замість 'curl'
+while ! ollama list > /dev/null 2>&1; do
   sleep 2
 done
 
+# 3. Качаємо моделі
 MODELS=("llama3" "nomic-embed-text")
 
 for model in "${MODELS[@]}"; do
