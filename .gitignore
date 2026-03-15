@@ -1,0 +1,8 @@
+secrets/
+**/__pycache__/
+.vscode/
+qdrant_data/
+docs/
+app/files/
+app/
+docs/
