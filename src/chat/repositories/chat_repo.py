@@ -13,8 +13,6 @@ class ChatRepository():
             await self.session.flush()
             user_chat = UserChat(user_id= user_id, chat_id= chat.id)
             self.session.add(user_chat)
-            await self.session.commit()
-            await self.session.refresh(chat)
             return chat
         except Exception as e :
             await self.session.rollback()
@@ -40,9 +38,7 @@ class ChatRepository():
     async def update_chat_title(self, chat_id : uuid.UUID, chat_title : str):
         query = update(Chat).where(Chat.id == chat_id).values(title = chat_title)
         await self.session.execute(query)
-        await self.session.commit()
         return True
     async def delete_chat(self, chat_id : uuid.UUID):
-        query = delete(Chat).where(Chat.id == chat_id)
+        query = delete(Chat).where( Chat.id == chat_id)
         await self.session.execute(query)
-        await self.session.commit()

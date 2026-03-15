@@ -46,19 +46,7 @@ class UserRepository():
         .values(**update_data) 
         .returning(User)
     )
-    
-        result = await self.session.execute(query)
-        updated_user = result.scalar_one_or_none() 
-    
-        if updated_user:
-            await self.session.commit()
-
-            await self.session.refresh(updated_user) 
-        else:
-
-            await self.session.rollback()
-        
-        return updated_user
+        return await self.session.execute(query)
     async def get_all_users(self, skip: int, limit: int):
         query = select(User).offset(skip).limit(limit)
         result = await self.session.execute(query)

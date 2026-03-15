@@ -17,12 +17,11 @@ class MessageRepository():
         message = Message(chat_id=chat_id, user_id= user_id, role = role, content=content, tokens_count = tokens)
         try:
             self.session.add(message)
-            await self.session.commit()
-            await self.session.refresh(message)
+            await self.session.flush()
             return message
         except Exception as e:
             await self.session.rollback()
-        raise  e 
+            raise  e 
     async def add_message_pair(self,chat_id : uuid.UUID,user_id: uuid.UUID, user_data : dict, assistant_data : dict):
         usr_mssg = Message(
             chat_id=chat_id,

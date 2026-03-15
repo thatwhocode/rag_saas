@@ -11,12 +11,15 @@ class AuthConfig(PostgresSettings):
 settings = AuthConfig()
 
 engine = create_async_engine(settings.SQLALCHEMY_DATABASE_URI,
-                              echo=True)
+                              echo=True,
+                              pool_size=100, 
+                              max_overflow=50)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     autoflush=False,
-    expire_on_commit= False
+    expire_on_commit= False,
+    
 )
 class Base(DeclarativeBase):
     pass

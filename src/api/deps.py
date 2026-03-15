@@ -11,34 +11,22 @@ from src.chat.repositories.chat_repo import ChatRepository
 from src.chat.repositories.message_repo import MessageRepository
 from src.chat.repositories.access_repo import AccessRepository
 from src.chat.services.chat_service import ChatService
+from shared_packages.core.config import RedisSettings
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="v1/auth/token")
 
-
+redis_settings = RedisSettings()
 def get_redis_service(request: Request) -> RedisService:
     return request.app.state.redis
 
 def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
 
-def get_chat_repo(db: AsyncSession = Depends(get_db)) -> ChatRepository:
-    return ChatRepository(db)
-
-def get_message_repo(db: AsyncSession = Depends(get_db)) -> MessageRepository:
-    return MessageRepository(db)
-
-def get_access_repo(db: AsyncSession = Depends(get_db))-> AccessRepository:
-    return AccessRepository(db
-                            )
 def get_auth_service(user_repo: UserRepository = Depends(get_user_repo)) -> AuthService:
-    return AuthService(user_repo)
+    return AuthService(user_repo.session,user_repo)
 
 def get_chat_service(
-    chat_repo: ChatRepository = Depends(get_chat_repo), 
-    message_repo: MessageRepository = Depends(get_message_repo), 
-    access_repo: AccessRepository = Depends(get_access_repo), 
-    db: AsyncSession = Depends(get_db)
-):
-    return ChatService(db, chat_repo, access_repo, message_repo)
+    db: AsyncSession = Depends(get_db)):
+    return ChatService(db, chat_repo = ChatRepository(db), access_repo = AccessRepository(db), message_repo= MessageRepository(db), redis= RedisService(redis_settings.REDIS_URL))
 
 async def get_validated_payload(
     token: str = Depends(oauth2_scheme),

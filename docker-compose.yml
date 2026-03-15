@@ -45,6 +45,13 @@ services:
       context: .
       dockerfile : src/ollama/Dockerfile
     container_name: ollama
+    tty: true  
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q 'llama3' && ollama list | grep -q 'nomic-embed-text'"]
+      interval: 15s    
+      timeout: 5s       
+      retries: 40       
+      start_period: 10s
     ports:
      - '11434:11434'
     volumes:
@@ -100,7 +107,7 @@ services:
       - .:/app
       - .:/files
     command:
-      sh -c "uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "uvicorn src.main:app --host 0.0.0.0 --port 8000  --workers 4 "
 secrets:
   redis_password:
     file: ./secrets/redis_password.txt
