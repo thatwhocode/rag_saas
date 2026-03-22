@@ -75,3 +75,18 @@ class ChatService():
     async def is_first_message(self, chat_id:uuid.UUID):
         if not await self.message_repo.get_history(chat_id=chat_id):
             return True
+    async def save_interaction(self, user_id : uuid.UUID, chat_id : uuid.UUID, user_content: str, assistant_content : str, metadata):
+        try:
+            await self.message_repo.send_message(chat_id=chat_id, user_id=user_id, role="USER", content=user_content, tokens = 0)
+            await self.message_repo.send_message(chat_id=chat_id, user_id=user_id, role = "ASSISTANT", content=assistant_content, tokens=metadata["eval_count"])
+            await self.session.commit()
+        except Exception as e:
+            await self.session.rollback()
+            raise e
+    async def rename_chat(self, chat_id : uuid.UUID, new_title : str):
+        try:
+            await self.chat_repo.update_chat_title(chat_id, new_title )
+            await self.session.commit()
+        except Exception as e:
+            await self.session.rollback()
+            raise e

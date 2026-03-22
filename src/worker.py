@@ -3,29 +3,26 @@ from uuid import UUID
 from celery import Celery
 from ollama import AsyncClient
 from qdrant_client import AsyncQdrantClient
-
-# Адаптери та Сервіси
 from adapters.qdrant_adapter import VectorStoreAdapter
 from adapters.ollama_adapter import LLMAdapter
 from src.chat.services.chat_service import ChatService
 from src.db.database import AsyncSessionLocal
-
-# Налаштування
+from src.services.redis import RedisService
 from shared_packages.core.config import (
     RedisSettings, 
     QdrantSettings, 
     LLMSettings
 )
 
-# 1. Ініціалізація налаштувань (екземпляри з маленької літери)
+
 qdrant_settings = QdrantSettings()
 ollama_settings = LLMSettings()
 redis_settings = RedisSettings()
-
-# 2. Глобальні клієнти для важких завдань (як інгестія)
+redis  = RedisService(redis_url=redis_settings.REDIS_URL)
 qdrant_client = AsyncQdrantClient(url=qdrant_settings.QDRANT_URL)
-# Важливо: використовуємо ollama_settings, а не клієнт
+
 ollama_client_global = AsyncClient(host=ollama_settings.OLLAMA_URL)
+
 
 celery_app = Celery(
     'worker', 
@@ -90,12 +87,13 @@ def rename_chat_automatically_task(chat_id_str: str, first_message: str):
                 chat_repo = ChatRepository(session)
                 access_repo = AccessRepository(session)
                 message_repo = MessageRepository(session)
-
+                
                 service = ChatService(
                     session=session,
                     chat_repo=chat_repo, 
                     access_repo=access_repo, 
-                    message_repo=message_repo
+                    message_repo=message_repo,
+                    redis=redis
                 )
                 await service.rename_chat(UUID(chat_id_str), new_title)
                 
